@@ -9,7 +9,7 @@
 #include "resource.h"
 #include "NuiApi.h"
 
-class CSkeletonBasics
+class CSkeleton
 {
     static const int        cScreenWidth  = 320;
     static const int        cScreenHeight = 240;
@@ -20,12 +20,12 @@ public:
     /// <summary>
     /// Constructor
     /// </summary>
-    CSkeletonBasics();
+    CSkeleton();
 
     /// <summary>
     /// Destructor
     /// </summary>
-    ~CSkeletonBasics();
+    ~CSkeleton();
 
     /// <summary>
     /// Handles window messages, passes most to the class instance to handle
