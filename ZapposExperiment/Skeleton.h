@@ -8,6 +8,7 @@
 
 #include "resource.h"
 #include "NuiApi.h"
+#include "cinder/gl/gl.h"
 
 class CSkeleton
 {
@@ -21,87 +22,43 @@ public:
     /// Constructor
     /// </summary>
     CSkeleton();
+	CSkeleton(int width, int height);
 
     /// <summary>
     /// Destructor
     /// </summary>
     ~CSkeleton();
 
-    /// <summary>
-    /// Handles window messages, passes most to the class instance to handle
-    /// </summary>
-    /// <param name="hWnd">window message is for</param>
-    /// <param name="uMsg">message</param>
-    /// <param name="wParam">message data</param>
-    /// <param name="lParam">additional message data</param>
-    /// <returns>result of message processing</returns>
-    static LRESULT CALLBACK MessageRouter(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+	/// <summary>
+	/// Main processing function
+	/// </summary>
+	void                    Update();
+	void                    Draw();
 
-    /// <summary>
-    /// Handle windows messages for a class instance
-    /// </summary>
-    /// <param name="hWnd">window message is for</param>
-    /// <param name="uMsg">message</param>
-    /// <param name="wParam">message data</param>
-    /// <param name="lParam">additional message data</param>
-    /// <returns>result of message processing</returns>
-    LRESULT CALLBACK        DlgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
-
-    /// <summary>
-    /// Creates the main window and begins processing
-    /// </summary>
-    /// <param name="hInstance"></param>
-    /// <param name="nCmdShow"></param>
-    int                     Run(HINSTANCE hInstance, int nCmdShow);
+	/// <summary>
+	/// Create the first connected Kinect found 
+	/// </summary>
+	/// <returns>S_OK on success, otherwise failure code</returns>
+	HRESULT                 CreateFirstConnected();
 
 private:
-    HWND                    m_hWnd;
-
+	int						width, height;
     bool                    m_bSeatedMode;
 
     // Current Kinect
     INuiSensor*             m_pNuiSensor;
 
     // Skeletal drawing
-    ID2D1HwndRenderTarget*   m_pRenderTarget;
-    ID2D1SolidColorBrush*    m_pBrushJointTracked;
-    ID2D1SolidColorBrush*    m_pBrushJointInferred;
-    ID2D1SolidColorBrush*    m_pBrushBoneTracked;
-    ID2D1SolidColorBrush*    m_pBrushBoneInferred;
-    D2D1_POINT_2F            m_Points[NUI_SKELETON_POSITION_COUNT];
+	NUI_SKELETON_FRAME		skeletonFrame;
+    glm::vec2				m_Points[NUI_SKELETON_POSITION_COUNT];   
 
-    // Direct2D
-    ID2D1Factory*           m_pD2DFactory;
-    
-    HANDLE                  m_pSkeletonStreamHandle;
-    HANDLE                  m_hNextSkeletonEvent;
-    
-    /// <summary>
-    /// Main processing function
-    /// </summary>
-    void                    Update();
-
-    /// <summary>
-    /// Create the first connected Kinect found 
-    /// </summary>
-    /// <returns>S_OK on success, otherwise failure code</returns>
-    HRESULT                 CreateFirstConnected();
-
+	HANDLE                  m_pSkeletonStreamHandle;
+	HANDLE                  m_hNextSkeletonEvent;
     /// <summary>
     /// Handle new skeleton data
     /// </summary>
     void                    ProcessSkeleton();
-
-    /// <summary>
-    /// Ensure necessary Direct2d resources are created
-    /// </summary>
-    /// <returns>S_OK if successful, otherwise an error code</returns>
-    HRESULT                 EnsureDirect2DResources( );
-
-    /// <summary>
-    /// Dispose Direct2d resources 
-    /// </summary>
-    void                    DiscardDirect2DResources( );
+	void					DrawSkeletonState();
 
     /// <summary>
     /// Draws a bone line between two joints
@@ -126,12 +83,6 @@ private:
     /// <param name="width">width (in pixels) of output buffer</param>
     /// <param name="height">height (in pixels) of output buffer</param>
     /// <returns>point in screen-space</returns>
-    D2D1_POINT_2F           SkeletonToScreen(Vector4 skeletonPoint, int width, int height);
+	glm::vec2				   SkeletonToScreen(Vector4 skeletonPoint, int width, int height);
 
-
-    /// <summary>
-    /// Set the status bar message
-    /// </summary>
-    /// <param name="szMessage">message to display</param>
-    void                    SetStatusMessage(const wchar_t* szMessage);
 };

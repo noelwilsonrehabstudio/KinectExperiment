@@ -1,6 +1,13 @@
 #include "stdafx.h"
+#include "cinder/app/App.h"
+#include "cinder/app/RendererGl.h"
+#include "cinder/gl/gl.h"
+#include "cinder/Log.h"
 #include "Skeleton.h"
 
+using namespace ci;
+using namespace ci::app;
+using namespace ci::log;
 
 static const float g_JointThickness = 3.0f;
 static const float g_TrackedBoneThickness = 6.0f;
@@ -10,16 +17,24 @@ static const float g_InferredBoneThickness = 1.0f;
 /// Constructor
 /// </summary>
 CSkeleton::CSkeleton() :
-	m_pD2DFactory(NULL),
+	m_bSeatedMode(true),
+	m_pNuiSensor(NULL),
 	m_hNextSkeletonEvent(INVALID_HANDLE_VALUE),
-	m_pSkeletonStreamHandle(INVALID_HANDLE_VALUE),
-	m_bSeatedMode(false),
-	m_pRenderTarget(NULL),
-	m_pBrushJointTracked(NULL),
-	m_pBrushJointInferred(NULL),
-	m_pBrushBoneTracked(NULL),
-	m_pBrushBoneInferred(NULL),
-	m_pNuiSensor(NULL)
+	width(cScreenWidth),
+	height(cScreenHeight)
+{
+	ZeroMemory(m_Points, sizeof(m_Points));
+}
+
+/// <summary>
+/// Constructor
+/// </summary>
+CSkeleton::CSkeleton(int in_width, int in_height) :
+	m_bSeatedMode(true),
+	m_pNuiSensor(NULL),
+	m_hNextSkeletonEvent(INVALID_HANDLE_VALUE),
+	width(in_width),
+	height(in_height)
 {
 	ZeroMemory(m_Points, sizeof(m_Points));
 }
@@ -34,86 +49,7 @@ CSkeleton::~CSkeleton()
 		m_pNuiSensor->NuiShutdown();
 	}
 
-	if (m_hNextSkeletonEvent && (m_hNextSkeletonEvent != INVALID_HANDLE_VALUE))
-	{
-		CloseHandle(m_hNextSkeletonEvent);
-	}
-
-	// clean up Direct2D objects
-	DiscardDirect2DResources();
-
-	// clean up Direct2D
-	SafeRelease(m_pD2DFactory);
-
 	SafeRelease(m_pNuiSensor);
-}
-
-/// <summary>
-/// Creates the main window and begins processing
-/// </summary>
-/// <param name="hInstance">handle to the application instance</param>
-/// <param name="nCmdShow">whether to display minimized, maximized, or normally</param>
-int CSkeleton::Run(HINSTANCE hInstance, int nCmdShow)
-{
-	MSG       msg = { 0 };
-	WNDCLASS  wc = { 0 };
-
-	// Dialog custom window class
-	wc.style = CS_HREDRAW | CS_VREDRAW;
-	wc.cbWndExtra = DLGWINDOWEXTRA;
-	wc.hInstance = hInstance;
-	wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
-	wc.hIcon = LoadIconW(hInstance, MAKEINTRESOURCE(IDI_APP));
-	wc.lpfnWndProc = DefDlgProcW;
-	wc.lpszClassName = L"SkeletonBasicsAppDlgWndClass";
-
-	if (!RegisterClassW(&wc))
-	{
-		return 0;
-	}
-
-	// Create main application window
-	HWND hWndApp = CreateDialogParamW(
-		hInstance,
-		MAKEINTRESOURCE(IDD_APP),
-		NULL,
-		(DLGPROC)CSkeleton::MessageRouter,
-		reinterpret_cast<LPARAM>(this));
-
-	// Show window
-	ShowWindow(hWndApp, nCmdShow);
-
-	const int eventCount = 1;
-	HANDLE hEvents[eventCount];
-
-	// Main message loop
-	while (WM_QUIT != msg.message)
-	{
-		hEvents[0] = m_hNextSkeletonEvent;
-
-		// Check to see if we have either a message (by passing in QS_ALLEVENTS)
-		// Or a Kinect event (hEvents)
-		// Update() will check for Kinect events individually, in case more than one are signalled
-		MsgWaitForMultipleObjects(eventCount, hEvents, FALSE, INFINITE, QS_ALLINPUT);
-
-		// Explicitly check the Kinect frame event since MsgWaitForMultipleObjects
-		// can return for other reasons even though it is signaled.
-		Update();
-
-		while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
-		{
-			// If a dialog message will be taken care of by the dialog proc
-			if ((hWndApp != NULL) && IsDialogMessageW(hWndApp, &msg))
-			{
-				continue;
-			}
-
-			TranslateMessage(&msg);
-			DispatchMessageW(&msg);
-		}
-	}
-
-	return static_cast<int>(msg.wParam);
 }
 
 /// <summary>
@@ -126,6 +62,12 @@ void CSkeleton::Update()
 		return;
 	}
 
+	if (NULL != m_pNuiSensor)
+	{
+		// Set near mode for sensor based on our internal state
+		m_pNuiSensor->NuiSkeletonTrackingEnable(m_hNextSkeletonEvent, m_bSeatedMode ? NUI_SKELETON_TRACKING_FLAG_ENABLE_SEATED_SUPPORT : 0);
+	}
+
 	// Wait for 0ms, just quickly test if it is time to process a skeleton
 	if (WAIT_OBJECT_0 == WaitForSingleObject(m_hNextSkeletonEvent, 0))
 	{
@@ -134,88 +76,16 @@ void CSkeleton::Update()
 }
 
 /// <summary>
-/// Handles window messages, passes most to the class instance to handle
+/// Main processing function
 /// </summary>
-/// <param name="hWnd">window message is for</param>
-/// <param name="uMsg">message</param>
-/// <param name="wParam">message data</param>
-/// <param name="lParam">additional message data</param>
-/// <returns>result of message processing</returns>
-LRESULT CALLBACK CSkeleton::MessageRouter(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+void CSkeleton::Draw()
 {
-	CSkeleton* pThis = NULL;
-
-	if (WM_INITDIALOG == uMsg)
+	if (0 == sizeof(m_Points))
 	{
-		pThis = reinterpret_cast<CSkeleton*>(lParam);
-		SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pThis));
-	}
-	else
-	{
-		pThis = reinterpret_cast<CSkeleton*>(::GetWindowLongPtr(hWnd, GWLP_USERDATA));
+		return;
 	}
 
-	if (pThis)
-	{
-		return pThis->DlgProc(hWnd, uMsg, wParam, lParam);
-	}
-
-	return 0;
-}
-
-/// <summary>
-/// Handle windows messages for the class instance
-/// </summary>
-/// <param name="hWnd">window message is for</param>
-/// <param name="uMsg">message</param>
-/// <param name="wParam">message data</param>
-/// <param name="lParam">additional message data</param>
-/// <returns>result of message processing</returns>
-LRESULT CALLBACK CSkeleton::DlgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-	switch (message)
-	{
-	case WM_INITDIALOG:
-	{
-		// Bind application window handle
-		m_hWnd = hWnd;
-
-		// Init Direct2D
-		D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &m_pD2DFactory);
-
-		// Look for a connected Kinect, and create it if found
-		CreateFirstConnected();
-	}
-	break;
-
-	// If the titlebar X is clicked, destroy app
-	case WM_CLOSE:
-		DestroyWindow(hWnd);
-		break;
-
-	case WM_DESTROY:
-		// Quit the main message pump
-		PostQuitMessage(0);
-		break;
-
-		// Handle button press
-	case WM_COMMAND:
-		// If it was for the near mode control and a clicked event, change near mode
-		if (IDC_CHECK_SEATED == LOWORD(wParam) && BN_CLICKED == HIWORD(wParam))
-		{
-			// Toggle out internal state for near mode
-			m_bSeatedMode = !m_bSeatedMode;
-
-			if (NULL != m_pNuiSensor)
-			{
-				// Set near mode for sensor based on our internal state
-				m_pNuiSensor->NuiSkeletonTrackingEnable(m_hNextSkeletonEvent, m_bSeatedMode ? NUI_SKELETON_TRACKING_FLAG_ENABLE_SEATED_SUPPORT : 0);
-			}
-		}
-		break;
-	}
-
-	return FALSE;
+	DrawSkeletonState();
 }
 
 /// <summary>
@@ -271,7 +141,7 @@ HRESULT CSkeleton::CreateFirstConnected()
 
 	if (NULL == m_pNuiSensor || FAILED(hr))
 	{
-		SetStatusMessage(L"No ready Kinect found!");
+		CI_LOG_D("No ready Kinect found!");
 		return E_FAIL;
 	}
 
@@ -283,8 +153,6 @@ HRESULT CSkeleton::CreateFirstConnected()
 /// </summary>
 void CSkeleton::ProcessSkeleton()
 {
-	NUI_SKELETON_FRAME skeletonFrame = { 0 };
-
 	HRESULT hr = m_pNuiSensor->NuiSkeletonGetNextFrame(0, &skeletonFrame);
 	if (FAILED(hr))
 	{
@@ -293,21 +161,12 @@ void CSkeleton::ProcessSkeleton()
 
 	// smooth out the skeleton data
 	m_pNuiSensor->NuiTransformSmooth(&skeletonFrame, NULL);
+}
 
-	// Endure Direct2D is ready to draw
-	hr = EnsureDirect2DResources();
-	if (FAILED(hr))
-	{
-		return;
-	}
-
-	m_pRenderTarget->BeginDraw();
-	m_pRenderTarget->Clear();
-
-	RECT rct;
-	GetClientRect(GetDlgItem(m_hWnd, IDC_VIDEOVIEW), &rct);
-	int width = rct.right;
-	int height = rct.bottom;
+void CSkeleton::DrawSkeletonState()
+{
+	HRESULT hr;
+	gl::clear(Color::black());
 
 	for (int i = 0; i < NUI_SKELETON_COUNT; ++i)
 	{
@@ -321,24 +180,12 @@ void CSkeleton::ProcessSkeleton()
 		else if (NUI_SKELETON_POSITION_ONLY == trackingState)
 		{
 			// we've only received the center point of the skeleton, draw that
-			D2D1_ELLIPSE ellipse = D2D1::Ellipse(
+			gl::drawSolidEllipse(
 				SkeletonToScreen(skeletonFrame.SkeletonData[i].Position, width, height),
 				g_JointThickness,
 				g_JointThickness
 			);
-
-			m_pRenderTarget->DrawEllipse(ellipse, m_pBrushJointTracked);
 		}
-	}
-
-	hr = m_pRenderTarget->EndDraw();
-
-	// Device lost, need to recreate the render target
-	// We'll dispose it now and retry drawing
-	if (D2DERR_RECREATE_TARGET == hr)
-	{
-		hr = S_OK;
-		DiscardDirect2DResources();
 	}
 }
 
@@ -389,15 +236,13 @@ void CSkeleton::DrawSkeleton(const NUI_SKELETON_DATA & skel, int windowWidth, in
 	// Draw the joints in a different color
 	for (i = 0; i < NUI_SKELETON_POSITION_COUNT; ++i)
 	{
-		D2D1_ELLIPSE ellipse = D2D1::Ellipse(m_Points[i], g_JointThickness, g_JointThickness);
-
 		if (skel.eSkeletonPositionTrackingState[i] == NUI_SKELETON_POSITION_INFERRED)
 		{
-			m_pRenderTarget->DrawEllipse(ellipse, m_pBrushJointInferred);
+			gl::drawSolidEllipse(m_Points[i], g_JointThickness, g_JointThickness);
 		}
 		else if (skel.eSkeletonPositionTrackingState[i] == NUI_SKELETON_POSITION_TRACKED)
 		{
-			m_pRenderTarget->DrawEllipse(ellipse, m_pBrushJointTracked);
+			gl::drawSolidEllipse(m_Points[i], g_JointThickness, g_JointThickness);
 		}
 	}
 }
@@ -428,11 +273,11 @@ void CSkeleton::DrawBone(const NUI_SKELETON_DATA & skel, NUI_SKELETON_POSITION_I
 	// We assume all drawn bones are inferred unless BOTH joints are tracked
 	if (joint0State == NUI_SKELETON_POSITION_TRACKED && joint1State == NUI_SKELETON_POSITION_TRACKED)
 	{
-		m_pRenderTarget->DrawLine(m_Points[joint0], m_Points[joint1], m_pBrushBoneTracked, g_TrackedBoneThickness);
+		gl::drawLine(m_Points[joint0], m_Points[joint1]);
 	}
 	else
 	{
-		m_pRenderTarget->DrawLine(m_Points[joint0], m_Points[joint1], m_pBrushBoneInferred, g_InferredBoneThickness);
+		gl::drawLine(m_Points[joint0], m_Points[joint1]);
 	}
 }
 
@@ -443,7 +288,7 @@ void CSkeleton::DrawBone(const NUI_SKELETON_DATA & skel, NUI_SKELETON_POSITION_I
 /// <param name="width">width (in pixels) of output buffer</param>
 /// <param name="height">height (in pixels) of output buffer</param>
 /// <returns>point in screen-space</returns>
-D2D1_POINT_2F CSkeleton::SkeletonToScreen(Vector4 skeletonPoint, int width, int height)
+vec2 CSkeleton::SkeletonToScreen(Vector4 skeletonPoint, int width, int height)
 {
 	LONG x, y;
 	USHORT depth;
@@ -455,71 +300,5 @@ D2D1_POINT_2F CSkeleton::SkeletonToScreen(Vector4 skeletonPoint, int width, int 
 	float screenPointX = static_cast<float>(x * width) / cScreenWidth;
 	float screenPointY = static_cast<float>(y * height) / cScreenHeight;
 
-	return D2D1::Point2F(screenPointX, screenPointY);
-}
-
-/// <summary>
-/// Ensure necessary Direct2d resources are created
-/// </summary>
-/// <returns>S_OK if successful, otherwise an error code</returns>
-HRESULT CSkeleton::EnsureDirect2DResources()
-{
-	HRESULT hr = S_OK;
-
-	// If there isn't currently a render target, we need to create one
-	if (NULL == m_pRenderTarget)
-	{
-		RECT rc;
-		GetWindowRect(GetDlgItem(m_hWnd, IDC_VIDEOVIEW), &rc);
-
-		int width = rc.right - rc.left;
-		int height = rc.bottom - rc.top;
-		D2D1_SIZE_U size = D2D1::SizeU(width, height);
-		D2D1_RENDER_TARGET_PROPERTIES rtProps = D2D1::RenderTargetProperties();
-		rtProps.pixelFormat = D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE);
-		rtProps.usage = D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE;
-
-		// Create a Hwnd render target, in order to render to the window set in initialize
-		hr = m_pD2DFactory->CreateHwndRenderTarget(
-			rtProps,
-			D2D1::HwndRenderTargetProperties(GetDlgItem(m_hWnd, IDC_VIDEOVIEW), size),
-			&m_pRenderTarget
-		);
-		if (FAILED(hr))
-		{
-			SetStatusMessage(L"Couldn't create Direct2D render target!");
-			return hr;
-		}
-
-		//light green
-		m_pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(0.27f, 0.75f, 0.27f), &m_pBrushJointTracked);
-
-		m_pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Yellow, 1.0f), &m_pBrushJointInferred);
-		m_pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Green, 1.0f), &m_pBrushBoneTracked);
-		m_pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Gray, 1.0f), &m_pBrushBoneInferred);
-	}
-
-	return hr;
-}
-
-/// <summary>
-/// Dispose Direct2d resources 
-/// </summary>
-void CSkeleton::DiscardDirect2DResources()
-{
-	SafeRelease(m_pRenderTarget);
-
-	SafeRelease(m_pBrushJointTracked);
-	SafeRelease(m_pBrushJointInferred);
-	SafeRelease(m_pBrushBoneTracked);
-	SafeRelease(m_pBrushBoneInferred);
-}
-
-/// <summary>
-/// Set the status bar message
-/// </summary>
-/// <param name="szMessage">message to display</param>
-void CSkeleton::SetStatusMessage(const wchar_t * szMessage)
-{
-	SendDlgItemMessageW(m_hWnd, IDC_STATUS, WM_SETTEXT, 0, (LPARAM)szMessage);
+	return vec2(screenPointX, screenPointY);
 }
