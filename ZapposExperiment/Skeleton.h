@@ -6,9 +6,10 @@
 
 #pragma once
 
-#include "resource.h"
-#include "NuiApi.h"
+#include <vector>
 #include "cinder/gl/gl.h"
+
+#include "NuiApi.h"
 
 class CSkeleton
 {
@@ -34,16 +35,22 @@ public:
 	/// </summary>
 	void                    Update();
 	void                    Draw();
+	glm::vec2 const * 		getLHandPos(_NUI_SKELETON_DATA * skeleton);
+	glm::vec2 const *		getRHandPos(_NUI_SKELETON_DATA * skeleton);
+	std::vector<_NUI_SKELETON_DATA*> getSkeletons();
 
 	/// <summary>
 	/// Create the first connected Kinect found 
 	/// </summary>
 	/// <returns>S_OK on success, otherwise failure code</returns>
 	HRESULT                 CreateFirstConnected();
+	void					updateWidthHeight(int width, int height);
+
 
 private:
 	int						width, height;
     bool                    m_bSeatedMode;
+	bool					tracking;
 
     // Current Kinect
     INuiSensor*             m_pNuiSensor;
@@ -59,6 +66,7 @@ private:
     /// </summary>
     void                    ProcessSkeleton();
 	void					DrawSkeletonState();
+	glm::vec2 const *		getBonePosition(_NUI_SKELETON_DATA * skeleton, NUI_SKELETON_POSITION_INDEX boneIndex);
 
     /// <summary>
     /// Draws a bone line between two joints

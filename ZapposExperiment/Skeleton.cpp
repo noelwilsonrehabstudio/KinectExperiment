@@ -21,7 +21,8 @@ CSkeleton::CSkeleton() :
 	m_pNuiSensor(NULL),
 	m_hNextSkeletonEvent(INVALID_HANDLE_VALUE),
 	width(cScreenWidth),
-	height(cScreenHeight)
+	height(cScreenHeight),
+	tracking(false)
 {
 	ZeroMemory(m_Points, sizeof(m_Points));
 }
@@ -47,6 +48,10 @@ CSkeleton::~CSkeleton()
 	if (m_pNuiSensor)
 	{
 		m_pNuiSensor->NuiShutdown();
+	}
+	if (m_hNextSkeletonEvent && (m_hNextSkeletonEvent != INVALID_HANDLE_VALUE))
+	{
+		CloseHandle(m_hNextSkeletonEvent);
 	}
 
 	SafeRelease(m_pNuiSensor);
@@ -165,7 +170,6 @@ void CSkeleton::ProcessSkeleton()
 
 void CSkeleton::DrawSkeletonState()
 {
-	HRESULT hr;
 	gl::clear(Color::black());
 
 	for (int i = 0; i < NUI_SKELETON_COUNT; ++i)
@@ -174,6 +178,7 @@ void CSkeleton::DrawSkeletonState()
 
 		if (NUI_SKELETON_TRACKED == trackingState)
 		{
+			tracking = true;
 			// We're tracking the skeleton, draw it
 			DrawSkeleton(skeletonFrame.SkeletonData[i], width, height);
 		}
@@ -186,7 +191,60 @@ void CSkeleton::DrawSkeletonState()
 				g_JointThickness
 			);
 		}
+		else
+		{
+			tracking = false;
+		}
 	}
+}
+
+vec2 const * CSkeleton::getLHandPos(_NUI_SKELETON_DATA * skeleton)
+{
+	if (skeleton != NULL && skeleton->eTrackingState == NUI_SKELETON_TRACKED)
+	{
+		return getBonePosition(skeleton, NUI_SKELETON_POSITION_HAND_LEFT);
+	}
+	else
+	{
+		return NULL;
+	}
+}
+
+vec2 const * CSkeleton::getRHandPos(_NUI_SKELETON_DATA * skeleton)
+{
+	if (skeleton != NULL && skeleton->eTrackingState == NUI_SKELETON_TRACKED)
+	{
+		return getBonePosition(skeleton, NUI_SKELETON_POSITION_HAND_RIGHT);
+	}
+	else
+	{
+		return NULL;
+	}
+}
+
+std::vector<_NUI_SKELETON_DATA *> CSkeleton::getSkeletons()
+{
+	std::vector<_NUI_SKELETON_DATA *> skeletons;
+	for (int i = 0; i < 6; i++) {
+		if (skeletonFrame.SkeletonData[i].eTrackingState == NUI_SKELETON_POSITION_TRACKED) {
+			skeletons.push_back(&skeletonFrame.SkeletonData[i]);
+		}
+	}
+	return skeletons;
+}
+
+vec2 const * CSkeleton::getBonePosition(_NUI_SKELETON_DATA * skeleton, NUI_SKELETON_POSITION_INDEX boneIndex)
+{
+	if (skeleton == NULL)
+	{
+		return NULL;
+	}
+	NUI_SKELETON_POSITION_TRACKING_STATE joint0State = skeleton->eSkeletonPositionTrackingState[boneIndex];
+	if (joint0State == NUI_SKELETON_POSITION_NOT_TRACKED)
+	{
+		return NULL;
+	}
+	return &m_Points[boneIndex];
 }
 
 /// <summary>
@@ -301,4 +359,9 @@ vec2 CSkeleton::SkeletonToScreen(Vector4 skeletonPoint, int width, int height)
 	float screenPointY = static_cast<float>(y * height) / cScreenHeight;
 
 	return vec2(screenPointX, screenPointY);
+}
+
+void CSkeleton::updateWidthHeight(int in_width, int in_height) {
+	width = in_width;
+	height = in_height;
 }

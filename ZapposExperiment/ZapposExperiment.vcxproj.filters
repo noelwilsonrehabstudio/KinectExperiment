@@ -24,12 +24,24 @@
     <ClInclude Include="Skeleton.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Particle.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ParticleController.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ZapposExperiment.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Skeleton.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ParticleController.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Particle.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
