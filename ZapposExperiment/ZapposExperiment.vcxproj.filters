@@ -30,6 +30,9 @@
     <ClInclude Include="ParticleController.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ZapposApp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ZapposExperiment.cpp">

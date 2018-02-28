@@ -156,6 +156,7 @@
     <ClInclude Include="resource.h" />
     <ClInclude Include="Skeleton.h" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="ZapposApp.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Particle.cpp" />

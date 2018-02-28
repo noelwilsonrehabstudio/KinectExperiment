@@ -21,8 +21,7 @@ CSkeleton::CSkeleton() :
 	m_pNuiSensor(NULL),
 	m_hNextSkeletonEvent(INVALID_HANDLE_VALUE),
 	width(cScreenWidth),
-	height(cScreenHeight),
-	tracking(false)
+	height(cScreenHeight)
 {
 	ZeroMemory(m_Points, sizeof(m_Points));
 }
@@ -30,8 +29,8 @@ CSkeleton::CSkeleton() :
 /// <summary>
 /// Constructor
 /// </summary>
-CSkeleton::CSkeleton(int in_width, int in_height) :
-	m_bSeatedMode(true),
+CSkeleton::CSkeleton(int in_width, int in_height, bool seated) :
+	m_bSeatedMode(seated),
 	m_pNuiSensor(NULL),
 	m_hNextSkeletonEvent(INVALID_HANDLE_VALUE),
 	width(in_width),
@@ -178,7 +177,6 @@ void CSkeleton::DrawSkeletonState()
 
 		if (NUI_SKELETON_TRACKED == trackingState)
 		{
-			tracking = true;
 			// We're tracking the skeleton, draw it
 			DrawSkeleton(skeletonFrame.SkeletonData[i], width, height);
 		}
@@ -190,10 +188,6 @@ void CSkeleton::DrawSkeletonState()
 				g_JointThickness,
 				g_JointThickness
 			);
-		}
-		else
-		{
-			tracking = false;
 		}
 	}
 }

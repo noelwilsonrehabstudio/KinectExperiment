@@ -7,23 +7,20 @@
 #pragma once
 
 #include <vector>
+#include "stdafx.h"
 #include "cinder/gl/gl.h"
-
 #include "NuiApi.h"
 
 class CSkeleton
 {
     static const int        cScreenWidth  = 320;
     static const int        cScreenHeight = 240;
-
-    static const int        cStatusMessageMaxLen = MAX_PATH*2;
-
 public:
     /// <summary>
     /// Constructor
     /// </summary>
     CSkeleton();
-	CSkeleton(int width, int height);
+	CSkeleton(int width, int height, bool seated);
 
     /// <summary>
     /// Destructor
@@ -46,12 +43,10 @@ public:
 	HRESULT                 CreateFirstConnected();
 	void					updateWidthHeight(int width, int height);
 
-
+	bool                    m_bSeatedMode;
 private:
 	int						width, height;
-    bool                    m_bSeatedMode;
-	bool					tracking;
-
+    
     // Current Kinect
     INuiSensor*             m_pNuiSensor;
 
